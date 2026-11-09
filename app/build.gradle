@@ -1,0 +1,14 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.shonobi.arena'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.shonobi.arena'
+        minSdk 26
+        targetSdk 28
+        versionCode 536
+        versionName '5.36'
+    }
+    buildTypes { release { minifyEnabled false } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}

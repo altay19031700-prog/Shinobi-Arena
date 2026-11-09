@@ -1,0 +1,2 @@
+
+(()=>{const b=document.createElement('button');b.id='desktop-panel-toggle';b.type='button';b.textContent='Скрыть панель';b.setAttribute('aria-expanded','true');const screen=document.getElementById('arenaScreen');const host=document.getElementById('gridBtn')?.parentElement;if(host)host.appendChild(b);b.onclick=()=>{const hidden=screen.classList.toggle('panel-folded');b.textContent=hidden?'Показать панель':'Скрыть панель';b.setAttribute('aria-expanded',String(!hidden));window.dispatchEvent(new Event('resize'));};})();

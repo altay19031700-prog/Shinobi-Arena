@@ -1,0 +1,1 @@
+(()=>{const r=document.getElementById('arena58-roster'),board=document.querySelector('#arenaScreen .boardwrap');if(r&&board)board.before(r);})();
