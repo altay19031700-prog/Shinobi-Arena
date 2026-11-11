@@ -44,7 +44,7 @@ const server=http.createServer(async(req,res)=>{
   const file=path.resolve(ROOT,'.'+rel),ext=path.extname(file).toLowerCase();
   if(!file.startsWith(ROOT+path.sep)||!mime[ext]){res.writeHead(404);return res.end()}
   fs.stat(file,(err,st)=>{if(err||!st.isFile()){res.writeHead(404);return res.end('Not found')}
-    res.writeHead(200,{'content-type':mime[ext],'content-length':st.size,'cache-control':ext==='.html'?'no-cache':'public, max-age=86400','x-content-type-options':'nosniff'});
+    res.writeHead(200,{'content-type':mime[ext],'content-length':st.size,'cache-control':(ext==='.html'||ext==='.js')?'no-cache':'public, max-age=86400','x-content-type-options':'nosniff'});
     if(req.method==='HEAD')res.end();else fs.createReadStream(file).pipe(res)})
 });
 const wss=new WebSocketServer({noServer:true,maxPayload:800000});
