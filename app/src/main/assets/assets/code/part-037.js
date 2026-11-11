@@ -1,6 +1,8 @@
 
 /* Two-player LAN beta. One host engine, sequenced commands, per-player views. */
 (()=>{'use strict';
+const ONLINE_ORIGIN='https://shinobi-arena-online-7n9y.onrender.com';
+const NET_BASE=(location.hostname==='127.0.0.1'||location.hostname==='localhost')?ONLINE_ORIGIN:location.origin;
 const BUILD='shinobi-lan-1-gen10-vfx520-fix1',clone=x=>JSON.parse(JSON.stringify(x)),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const engine={execute:window.execute,newGame:window.newGame,enemyTurn:window.enemyTurn,log:window.log,checkEnd:window.checkEnd,resolveCounter:window.resolveCounter,cueFx:window.cueFx,render:window.renderGame};
 let session=null,socket=null,online={host:false,guest:false},readyFlags={host:false,guest:false},battle=false,busy=false,waiting=false,simulating=false,seq=1,revision=0,retry=null,leaving=false,stable=null,remoteStamp=0,remoteFx=null,lastFxSerial=null,eventSerial=0,lastEvent=0,lastSeal=null;
@@ -41,9 +43,9 @@ function refresh(){
  }
 }
 async function api(path,data){
- if(location.protocol==='file:')throw Error('Комната не создаётся из HTML-файла. На ПК запусти PLAY_SHINOBI.cmd или START_INTERNET_WINDOWS.cmd, а затем нажми «Создать комнату» в открывшемся окне браузера.');
+ if(location.protocol==='file:')throw Error('Открой игру через APK или по HTTPS-ссылке, чтобы создать комнату.');
  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);let r;
- try{r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,build:BUILD}),signal:controller.signal});}
+ try{r=await fetch(new URL(path,NET_BASE),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,build:BUILD}),signal:controller.signal});}
  catch(e){throw Error(e.name==='AbortError'?'Сервер не ответил за 12 секунд. Проверь окно хоста.':'Сервер недоступен. Запусти хост на ПК и открой игру по его адресу, не двойным кликом по HTML.');}
  finally{clearTimeout(timeout)}
  let x;try{x=await r.json()}catch{throw Error('Адрес открыл не игровой сервер. Запусти PLAY_SHINOBI.cmd или START_INTERNET_WINDOWS.cmd.')}
@@ -51,9 +53,9 @@ async function api(path,data){
  return x;
 }
 async function connect(info){if(socket){socket.onclose=null;socket.onmessage=null;socket.close()}online={host:false,guest:false};session=info;mode=info.mode||mode;coopTurn='host';aiPhase=false;leaving=false;remember();history.replaceState(null,'','?room='+session.code);$('net-code').value=session.code;
- const r=await fetch('/api/addresses').then(r=>r.ok?r.json():{}).catch(()=>({}));const local=location.hostname==='127.0.0.1'||location.hostname==='localhost';const options=local?[r.internet_url,...(r.addresses||[]).filter(a=>!a.includes('127.0.0.1'))]:[location.origin];const unique=[...new Set(options.filter(Boolean))];if(!unique.length)unique.push(location.origin);$('net-address').replaceChildren(...unique.map(url=>{const o=document.createElement('option');o.value=url;o.textContent=(url.startsWith('https://')?'🌍 Интернет: ':'🏠 Wi-Fi: ')+url;return o}));link();openSocket();refresh();}
-function link(){if(!session)return;const u=new URL('/', $('net-address').value);u.searchParams.set('room',session.code);const url=u.toString();$('net-room-link').href=url;$('net-room-link').textContent=url;$('net-qr').src='/qr?text='+encodeURIComponent(url)}
-function openSocket(){if(!session||leaving)return;clearTimeout(retry);socket=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws?room='+session.code+'&token='+session.token);socket.onmessage=e=>{try{receive(JSON.parse(e.data))}catch(err){console.error('Network receive',err);status('Ошибка сетевого состояния: '+err.message)}};socket.onclose=()=>{online={host:false,guest:false};waiting=false;refresh();if(!leaving)retry=setTimeout(openSocket,1500)};socket.onerror=()=>status('Нет связи с сервером. Проверяем подключение…');}
+ const r=await fetch(new URL('/api/addresses',NET_BASE)).then(r=>r.ok?r.json():{}).catch(()=>({}));const local=location.hostname==='127.0.0.1'||location.hostname==='localhost';const options=local?[r.internet_url,...(r.addresses||[]).filter(a=>!a.includes('127.0.0.1'))]:[location.origin];const unique=[...new Set(options.filter(Boolean))];if(!unique.length)unique.push(location.origin);$('net-address').replaceChildren(...unique.map(url=>{const o=document.createElement('option');o.value=url;o.textContent=(url.startsWith('https://')?'🌍 Интернет: ':'🏠 Wi-Fi: ')+url;return o}));link();openSocket();refresh();}
+function link(){if(!session)return;const u=new URL('/', $('net-address').value);u.searchParams.set('room',session.code);const url=u.toString();$('net-room-link').href=url;$('net-room-link').textContent=url;$('net-qr').src=new URL('/qr?text='+encodeURIComponent(url),NET_BASE).toString()}
+function openSocket(){if(!session||leaving)return;clearTimeout(retry);socket=new WebSocket(NET_BASE.replace(/^http/,'ws')+'/ws?room='+session.code+'&token='+session.token);socket.onmessage=e=>{try{receive(JSON.parse(e.data))}catch(err){console.error('Network receive',err);status('Ошибка сетевого состояния: '+err.message)}};socket.onclose=()=>{online={host:false,guest:false};waiting=false;refresh();if(!leaving)retry=setTimeout(openSocket,1500)};socket.onerror=()=>status('Нет связи с сервером. Проверяем подключение…');}
 function importGame(data,projected=false){const state=decode(data.game),local=saveSelection();if(!game)game=state;else Object.assign(game,state);fxQueue.length=0;game.animating=!!data.busy;
  if(projected){game.selected=game.units.some(u=>u.id===local.id&&u.team==='ally'&&u.hp>0&&(!coop()||ownerOf(u)===session.role))?local.id:(coop()?myUnits()[0]?.id:game.units.find(u=>u.team==='ally'&&u.hp>0)?.id);game.action=data.turn===session.role&&remoteStamp&&local.action?local.action:'move';game.hoverCell=local.hover;game.netCounter=data.counter;game.pendingCounter=null;}
  else if(data.pending){game.pendingCounter={attacker:game.units.find(u=>u.id===data.pending.attacker),defender:game.units.find(u=>u.id===data.pending.defender),resume:null};}
@@ -158,6 +160,6 @@ let lastGuestFrame=0;function guestAnimation(now){
  }requestAnimationFrame(guestAnimation);
 window.__shinobiNetVfxPublish=function(o){if(!isHost()||!battle||!o||!game)return;events.push({id:o.id,actor:o.actor,from:o.from,to:o.to,element:o.element,at:performance.now(),serial:++eventSerial})};
 window.__shinobiNetwork={get active(){return !!session&&battle},get role(){return session?.role||null},get mode(){return mode},get coopTurn(){return coopTurn},get revision(){return revision},get connected(){return both()},get busy(){return busy||waiting},canSimulate:u=>!!session&&battle&&isHost()&&simulating&&u.team===game.phase,shouldRoute:()=>!!session&&battle&&!simulating,cast:(u,id,cell)=>submit({kind:'action',actor:u?.id,action:'tech:'+id,cell:cell||u}),checkEnd:checkVictory,get debug(){return {session:session?{code:session.code,role:session.role}:null,battle,busy,waiting,revision,online,winner}},submit};
-const initial=new URLSearchParams(location.search).get('room');if(initial){$('net-code').value=initial;guarded(async()=>{let saved;try{saved=JSON.parse(localStorage.getItem('shinobi-lan-'+initial)||'null')}catch{}await connect(await api('/api/join',{code:initial,token:saved?.token}))});}else if(location.protocol!=='file:')status('Сервер доступен. Создай комнату или введи код.');refresh();
+const initial=new URLSearchParams(location.search).get('room');if(initial){$('net-code').value=initial;guarded(async()=>{let saved;try{saved=JSON.parse(localStorage.getItem('shinobi-lan-'+initial)||'null')}catch{}await connect(await api('/api/join',{code:initial,token:saved?.token}))});}else if(location.protocol!=='file:')status('Интернет-комнаты: '+NET_BASE+'. Создай комнату или введи код.');refresh();
 })();
 
