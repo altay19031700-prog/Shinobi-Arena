@@ -1,0 +1,37 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),{spawn}=require('node:child_process'),WebSocket=require('ws');
+const BUILD='shinobi-lan-1-gen10-vfx520-fix1';
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function client(url){const ws=new WebSocket(url),queue=[],listeners=[];ws.on('message',raw=>{const p=JSON.parse(raw.toString());queue.push(p);for(const l of [...listeners])l()});return {ws,async get(type,timeout=5000){const until=Date.now()+timeout;while(Date.now()<until){const i=queue.findIndex(p=>p.type===type);if(i>=0)return queue.splice(i,1)[0];await new Promise(resolve=>{let done=false;const l=()=>{if(!done){done=true;listeners.splice(listeners.indexOf(l),1);resolve()}};listeners.push(l);setTimeout(l,Math.min(250,Math.max(1,until-Date.now())))});}throw Error('Timed out waiting for '+type+'; received '+queue.map(x=>x.type).join(','))},send(o){ws.send(JSON.stringify(o))},close(){ws.close()}}}
+test('Android/Web browser room relay, two players, command, state, reconnect',async t=>{
+  const port=18000+Math.floor(Math.random()*10000),base='http://127.0.0.1:'+port;
+  const child=spawn(process.execPath,['server-online.js'],{cwd:require('node:path').join(__dirname,'..'),env:{...process.env,PORT:String(port)},stdio:'pipe'});
+  let stderr='';child.stderr.on('data',b=>stderr+=b);
+  const peers=[];t.after(()=>{for(const p of peers)p.close();child.kill()});
+  let ready=false;
+  for(let i=0;i<60;i++){try{const r=await fetch(base+'/health');if(r.ok){assert.equal((await r.json()).build,BUILD);ready=true;break}}catch{}await sleep(100)}
+  assert.ok(ready,'Server failed to start: '+stderr);
+  const post=async(route,data)=>{const r=await fetch(base+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});return {status:r.status,data:await r.json()}};
+  const a=await post('/api/create',{mode:'pvp',build:BUILD});assert.equal(a.status,200);assert.match(a.data.code,/^[A-Z2-9]{6}$/);
+  const b=await post('/api/join',{code:a.data.code,build:BUILD});assert.equal(b.status,200);assert.equal(b.data.role,'guest');
+  assert.equal((await post('/api/join',{code:a.data.code,build:BUILD})).status,409);
+  assert.equal((await post('/api/create',{mode:'coop',build:'old'})).status,409);
+  const wsurl=base.replace('http','ws')+'/ws?room='+a.data.code+'&token=';
+  const host=client(wsurl+a.data.token),guest=client(wsurl+b.data.token);peers.push(host,guest);
+  assert.equal((await host.get('hello')).build,BUILD);assert.equal((await guest.get('hello')).role,'guest');
+  host.send({type:'ready',roster:[{name:'Host'}]});guest.send({type:'ready',roster:[{name:'Guest'}]});
+  const squads=await host.get('squads');assert.equal(squads.host[0].name,'Host');assert.equal(squads.guest[0].name,'Guest');
+  host.send({type:'state',state:{game:{units:[]}},checkpoint:{game:{units:[]}},revision:1,turn:'guest',counter:null,busy:false});
+  const state=await guest.get('state');assert.equal(state.revision,1);
+  guest.send({type:'command',seq:1,revision:1,command:{kind:'end'}});
+  const cmd=await host.get('command');assert.equal(cmd.role,'guest');assert.equal(cmd.seq,1);
+  host.send({type:'state',state:{game:{units:[]}},checkpoint:{game:{units:[]}},revision:2,turn:'host',counter:null,busy:false});
+  assert.equal((await guest.get('state')).revision,2);
+  host.send({type:'ack',role:'guest',seq:1,ok:true});assert.equal((await guest.get('ack')).ok,true);
+  guest.close();await sleep(100);
+  const re=client(wsurl+b.data.token);peers.push(re);const hello=await re.get('hello');assert.equal(hello.nextSeq,2);
+  assert.equal((await re.get('state')).revision,2);
+  host.send({type:'reset'});assert.equal((await host.get('reset')).type,'reset');assert.equal((await re.get('reset')).type,'reset');
+  const qr=await fetch(base+'/qr?text='+encodeURIComponent('https://example.org/?room='+a.data.code));assert.equal(qr.status,200);assert.match(await qr.text(),/<svg/);
+  const index=await fetch(base+'/');assert.equal(index.status,200);assert.match(await index.text(),/Шиноби/);
+});
