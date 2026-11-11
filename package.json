@@ -6,6 +6,7 @@
     "start": "node server-online.js"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "qrcode": "^1.5.4"
   }
 }
