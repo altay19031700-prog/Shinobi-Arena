@@ -44,9 +44,9 @@ function refresh(){
 }
 async function api(path,data){
  if(location.protocol==='file:')throw Error('Открой игру через APK или по HTTPS-ссылке, чтобы создать комнату.');
- const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);let r;
+ const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),60000);let r;
  try{r=await fetch(new URL(path,NET_BASE),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,build:BUILD}),signal:controller.signal});}
- catch(e){throw Error(e.name==='AbortError'?'Сервер не ответил за 12 секунд. Проверь окно хоста.':'Сервер недоступен. Запусти хост на ПК и открой игру по его адресу, не двойным кликом по HTML.');}
+ catch(e){throw Error(e.name==='AbortError'?'Сервер не ответил за 60 секунд. Бесплатный Render может просыпаться после простоя.':'Сервер недоступен. Запусти хост на ПК и открой игру по его адресу, не двойным кликом по HTML.');}
  finally{clearTimeout(timeout)}
  let x;try{x=await r.json()}catch{throw Error('Адрес открыл не игровой сервер. Запусти PLAY_SHINOBI.cmd или START_INTERNET_WINDOWS.cmd.')}
  if(!r.ok)throw Error((x.error||'Ошибка сервера.')+(r.status===409?' Закрой старую вкладку и перезапусти хост из этого же архива.':''));
