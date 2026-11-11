@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start": "node server-online.js"
+    "start": "node server-online.js",
+    "test": "node --test tests/network.test.js",
+    "postinstall": "npm test"
   },
   "dependencies": {
     "ws": "^8.18.0",
