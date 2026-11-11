@@ -1,0 +1,11 @@
+{
+  "name": "shinobi-online-host",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node server-online.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
