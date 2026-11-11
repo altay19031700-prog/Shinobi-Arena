@@ -12,6 +12,9 @@ test('Android/Web browser room relay, two players, command, state, reconnect',as
   for(let i=0;i<60;i++){try{const r=await fetch(base+'/health');if(r.ok){assert.equal((await r.json()).build,BUILD);ready=true;break}}catch{}await sleep(100)}
   assert.ok(ready,'Server failed to start: '+stderr);
   const post=async(route,data)=>{const r=await fetch(base+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});return {status:r.status,data:await r.json()}};
+  const preflight=await fetch(base+'/api/create',{method:'OPTIONS',headers:{Origin:'http://127.0.0.1:43210','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type'}});
+  assert.equal(preflight.status,204);assert.equal(preflight.headers.get('access-control-allow-origin'),'http://127.0.0.1:43210');
+  const forbidden=await fetch(base+'/api/create',{method:'OPTIONS',headers:{Origin:'https://untrusted.example'}});assert.equal(forbidden.status,403);
   const a=await post('/api/create',{mode:'pvp',build:BUILD});assert.equal(a.status,200);assert.match(a.data.code,/^[A-Z2-9]{6}$/);
   const b=await post('/api/join',{code:a.data.code,build:BUILD});assert.equal(b.status,200);assert.equal(b.data.role,'guest');
   assert.equal((await post('/api/join',{code:a.data.code,build:BUILD})).status,409);
